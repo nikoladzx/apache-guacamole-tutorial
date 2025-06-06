@@ -1,6 +1,6 @@
-# Apache Guacamole Integracija za Daljinski Pristup Udaljenim Racunarima
+# Apache Guacamole Integracija za Pristup Udaljenim Racunarima preko Web Browser-a
 
-Ovaj projekat prikazuje kako se Apache Guacamole može postaviti i koristiti za daljinski pristup udaljenim racunarima putem web pregledača, sa MySQL bazom podataka kao skladištem za konfiguracije konekcija.
+Ovaj projekat prikazuje kako se Apache Guacamole može postaviti i koristiti za pristup udaljenim racunarima putem web pregledača, sa MySQL bazom podataka kao skladištem za konfiguracije konekcija.
 
 ## Sadržaj
 
