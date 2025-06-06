@@ -23,7 +23,7 @@ Apache Guacamole je robusno, klijentsko okruženje bez dodatnog softvera (client
 ### Ključna funkcionalnost:
 
 - **Centralizovano upravljanje**: Sve konekcije se centralno upravljaju u MySQL bazi
-- **Jednostavan pristup**: Korisnici pristupaju VM-ovima direktno iz web pregledača
+- **Jednostavan pristup**: Korisnici pristupaju udaljenim racunarima direktno iz web pregledača
 - **Dinamičko kreiranje konekcija**: Konekcije se kreiraju "on-the-fly" na osnovu informacija o udaljenim racunarima
 
 ## Preduslovi
@@ -139,32 +139,22 @@ Backend aplikacija je zadužena za dobijanje informacija o udaljenim racunarima 
 Za potrebe ovog primera, simuliramo dohvatanje informacija o uređaju. U stvarnoj aplikaciji, ove informacije bi došle iz baze podataka ili inventarnog sistema.
 
 ```javascript
-function generateRandomString(length) {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length);
-    result += characters.charAt(randomIndex);
-  }
-  return result;
-}
-
 // Simulacija dohvatanja informacija o uređaju
 function getDeviceInfo(roomNumber, pcNumber) {
   return new Promise((resolve, reject) => {
     // Mock podaci za demonstraciju
     const mockDevices = {
       "1-1": {
-        identifier: "user_vm_1_1",
+        identifier: "user_remote_pc_1_1",
         ipAddress: "192.168.1.100",
-        userPassword: "vm_user",
-        password: "vm_password"
+        userPassword: "remote_pc_user",
+        password: "remote_pc_password"
       },
       "1-2": {
-        identifier: "user_vm_1_2",
+        identifier: "user_remote_pc_1_2",
         ipAddress: "192.168.1.101",
-        userPassword: "vm_user2",
-        password: "vm_password2"
+        userPassword: "remote_pc_user2",
+        password: "remote_pc_password2"
       }
       // Dodajte više uređaja po potrebi
     };
@@ -186,7 +176,7 @@ function getDeviceInfo(roomNumber, pcNumber) {
 `getGuacamoleConnection` funkcija je glavni endpoint koji obavlja sledeće korake:
 
 1. **Autentifikacija na Guacamole API**: Prikuplja administratorski token
-2. **Dohvatanje informacija o uređaju**: Koristi `getDeviceInfo` za detalje o VM-u
+2. **Dohvatanje informacija o uređaju**: Koristi `getDeviceInfo` za detalje o udaljenom racunaru
 3. **Kreiranje nove Guacamole konekcije**: Dinamički kreira RDP konekciju
 4. **Vraća detalje konekcije**: Prosleđuje generisani ID konekcije i token frontendu
 
@@ -275,16 +265,6 @@ export { getGuacamoleConnection };
 Frontend koristi `guacamole-common-js` biblioteku za interakciju sa Guacamole web aplikacijom i prikaz udaljenog desktopa.
 
 ```javascript
-import { useState, useEffect, useRef } from 'react';
-import Guacamole from 'guacamole-common-js';
-
-const Hero = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [guacamoleClient, setGuacamoleClient] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('');
-  const displayRef = useRef(null);
-
   const handleConnect = async () => {
     if (guacamoleClient) {
       guacamoleClient.disconnect();
@@ -293,11 +273,7 @@ const Hero = () => {
       return;
     }
 
-    try {
-      setIsLoading(true);
-      setError(null);
-      setConnectionStatus('Povezujete se sa mašinom, molimo sačekajte dok se vaša VM ne pripremi...');
-      
+    try { 
       console.log("Dohvatanje podataka za konekciju...");
       const response = await fetch("http://192.168.1.3:5000/api/pcs/guacamole-connection", {
         method: 'GET',
@@ -351,113 +327,6 @@ const Hero = () => {
       setConnectionStatus('');
     }
   };
-
-  useEffect(() => {
-    if (guacamoleClient && displayRef.current) {
-      // Prikaz Guacamole ekrana
-      const display = guacamoleClient.getDisplay().getElement();
-      displayRef.current.innerHTML = '';
-      displayRef.current.appendChild(display);
-
-      // Podešavanje ulaznih uređaja
-      const mouse = new Guacamole.Mouse(display);
-      mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = (mouseState) => {
-        guacamoleClient.sendMouseState(mouseState);
-      };
-
-      const keyboard = new Guacamole.Keyboard(document);
-      keyboard.onkeydown = (keysym) => {
-        guacamoleClient.sendKeyEvent(1, keysym);
-      };
-      keyboard.onkeyup = (keysym) => {
-        guacamoleClient.sendKeyEvent(0, keysym);
-      };
-
-      display.tabIndex = 0;
-      display.addEventListener('mousedown', () => {
-        display.focus();
-      });
-
-      // Dinamička promena veličine prikaza
-      const resizeDisplay = () => {
-        requestAnimationFrame(() => {
-          const containerWidth = displayRef.current.clientWidth;
-          const containerHeight = displayRef.current.clientHeight;
-          
-          display.style.width = '100%';
-          display.style.height = '100%';
-          display.style.objectFit = 'contain';
-          display.style.maxWidth = 'none';
-          display.style.maxHeight = 'none';
-          
-          guacamoleClient.getDisplay().scale(Math.min(
-            containerWidth / guacamoleClient.getDisplay().getWidth(),
-            containerHeight / guacamoleClient.getDisplay().getHeight()
-          ));
-        });
-      };
-
-      resizeDisplay();
-      window.addEventListener('resize', resizeDisplay);
-
-      return () => {
-        window.removeEventListener('resize', resizeDisplay);
-        if (guacamoleClient) {
-          guacamoleClient.disconnect();
-        }
-      };
-    }
-  }, [guacamoleClient]);
-
-  return (
-    <div className="container">
-      <button 
-        onClick={handleConnect} 
-        disabled={isLoading}
-        className={`connect-button ${isLoading ? 'loading' : ''} ${guacamoleClient ? 'connected' : ''}`}
-      >
-        <span className="button-content">
-          {isLoading ? (
-            <>
-              <div className="spinner"></div>
-              Povezivanje...
-            </>
-          ) : (
-            guacamoleClient ? "Prekini vezu" : "Poveži se na udaljeni racunar"
-          )}
-        </span>
-      </button>
-
-      {error && (
-        <div className="error-message">
-          {error}
-        </div>
-      )}
-
-      {(isLoading || connectionStatus) && (
-        <div className="loading-card">
-          <div className="monitor-icon">
-            <svg viewBox="0 0 24 24" className="monitor" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-              <line x1="8" y1="21" x2="16" y2="21"/>
-              <line x1="12" y1="17" x2="12" y2="21"/>
-            </svg>
-            <div className="loading-spinner"></div>
-          </div>
-          <h3>Povezivanje na Vašu VM</h3>
-          <p>Molimo sačekajte dok uspostavljamo sigurnu vezu sa udaljenim racunarom...</p>
-          <div className="progress-bar">
-            <div className="progress-bar-fill"></div>
-          </div>
-        </div>
-      )}
-
-      {guacamoleClient && (
-        <div 
-          ref={displayRef} 
-          className="display-container"
-        />
-      )}
 ```
 
 ### Guacamole Klijent Inicijalizacija
@@ -469,17 +338,9 @@ Kada korisnik klikne na dugme "Connect", frontend:
 3. Poziva `guac.connect()` sa primljenim parametrima
 4. Rukuje greškama i promenama stanja konekcije
 
-### Upravljanje Prikazom i Unosom
-
-`useEffect` hook osigurava da se Guacamole prikaz pravilno integriše:
-
-- **Prikaz**: `guacamoleClient.getDisplay().getElement()` vraća HTML element sa udaljenim desktop prikazom
-- **Miš i Tastatura**: Kreiraju se `Guacamole.Mouse` i `Guacamole.Keyboard` instance za interakciju
-- **Promena Veličine**: `resizeDisplay` funkcija dinamički prilagođava veličinu prikaza
-
 ## Zaključak
 
-Ovaj projekat pruža funkcionalno rešenje za daljinski pristup udaljenim mašinama putem web pregledača, koristeći snagu Apache Guacamole-a u kombinaciji sa robusnim backendom i reaktivnim frontendom. Kroz Docker Compose, osigurana je laka implementacija, dok dinamičko kreiranje konekcija omogućava fleksibilno upravljanje pristupom VM-ovima.
+Ovaj projekat pruža funkcionalno rešenje za daljinski pristup udaljenim mašinama putem web pregledača, koristeći snagu Apache Guacamole-a u kombinaciji sa robusnim backendom i reaktivnim frontendom. Kroz Docker Compose, osigurana je laka implementacija, dok dinamičko kreiranje konekcija omogućava fleksibilno upravljanje pristupom udaljenim racunarima.
 
 Ovo rešenje je idealno za demonstraciju, testiranje, ili kao osnova za razvoj složenijih sistema za daljinski pristup.
 
@@ -490,4 +351,4 @@ Ovo rešenje je idealno za demonstraciju, testiranje, ili kao osnova za razvoj s
 - Zamenite IP adrese u kodu sa stvarnim adresama vaših servera
 - Postavite odgovarajuće environment varijable za produkciju
 - Obezbedite sigurnosne mere za pristup MySQL bazi i Guacamole API-ju
-- Testirajte konekcije sa stvarnim VM-ovima pre produkcijske upotrebe
+- Testirajte konekcije sa stvarnim udaljenim racunarima pre produkcijske upotrebe
